@@ -1,12 +1,18 @@
 const express = require("express");
 const app = express();
 const cors = require("cors");
+const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser');
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
 const port = process.env.PORT || 3000;
 
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:5173'],
+  credentials: true,
+}));
 app.use(express.json());
+app.use(cookieParser());
 
 app.get("/", (req, res) => {
   res.send("Hello World!");
@@ -38,6 +44,17 @@ async function run() {
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
     );
+
+    app.post('/jwt', (req, res) => {
+      const user = req.body;
+     const token = jwt.sign(user, process.env.JWT_SECRET, { expiresIn: '1h' })
+      res
+      .cookie('token', token, {
+       httpOnly: true,
+       secure: false,      
+      })
+      .send({ success: true });
+    })
 
     app.get("/jobs", async (req, res) => {
       const email = req.query.email;
