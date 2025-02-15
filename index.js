@@ -14,6 +14,29 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser());
 
+const logger = (req, res, next) => {
+  console.log('log: info');
+  next();
+}; 
+
+const verifyToken = (req, res, next) => {
+  console.log('token inside the verify token', req.cookies);
+  const token = req?.cookies?.token;
+
+  if (!token) {
+    return res.status(401).send({ error: 1, message: 'unauthorized access' })
+  }
+
+  jwt.verify(token, process.env.ACC_TOKEN_SECRET, (err, decoded) => {
+    if (err) {
+      return res.status(401).send({ error: 1, message: 'unauthorized access' })
+    }
+    req.user = decoded;
+    next();
+  })
+
+};
+
 app.get("/", (req, res) => {
   res.send("Hello World!");
 });
@@ -47,16 +70,16 @@ async function run() {
 
     app.post('/jwt', (req, res) => {
       const user = req.body;
-     const token = jwt.sign(user, process.env.JWT_SECRET, { expiresIn: '1h' })
-      res
-      .cookie('token', token, {
+     const token = jwt.sign(user, process.env.ACC_TOKEN_SECRET, { expiresIn: '1h' })
+      res.cookie('token', token, {
        httpOnly: true,
        secure: false,      
       })
       .send({ success: true });
     })
 
-    app.get("/jobs", async (req, res) => {
+    app.get("/jobs", logger, async (req, res) => {
+      console.log('token inside the get jobs');
       const email = req.query.email;
       let query = {};
       if (email) {
@@ -87,9 +110,14 @@ async function run() {
     });
 
     //job application api
-    app.get("/job-application", async (req, res) => {
+    app.get("/job-application", verifyToken, async (req, res) => {
       const email = req.query.email;
-      const query = { applicant_email: email };
+      const query = { applicant_email: email };     
+
+      if (req.user.email !== req.query.email) {
+        return res.status(403).send({ error: 1, message: 'forbidden access' })
+      }
+
       const result = await jobApplicationCollection.find(query).toArray();
       for (const application of result) {
         const query1 = { _id: new ObjectId(application.job_id) };
